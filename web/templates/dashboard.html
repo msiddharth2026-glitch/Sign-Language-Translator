@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Sign Language Translator</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;font-family:'Segoe UI',sans-serif;color:#f8fafc;min-height:100vh;display:flex;flex-direction:column}
+nav{background:#1e293b;border-bottom:1px solid #334155;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.nav-title{font-size:16px;font-weight:700;color:#38bdf8}
+.nav-right{display:flex;align-items:center;gap:12px;font-size:13px;color:#94a3b8}
+.nav-right span{color:#f8fafc;font-weight:600}
+.logout-btn{padding:5px 14px;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#94a3b8;font-size:12px;cursor:pointer;text-decoration:none;transition:.2s}
+.logout-btn:hover{border-color:#38bdf8;color:#38bdf8}
+.tabs{display:flex;border-bottom:1px solid #334155;background:#1e293b;padding:0 24px;flex-shrink:0}
+.tab{padding:12px 24px;font-size:13px;font-weight:600;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent;transition:.2s}
+.tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
+main{flex:1;padding:20px 24px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.row{display:grid;gap:16px}
+.row-2{grid-template-columns:1fr 1.5fr}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px}
+.card-label{font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+
+/* Prediction card */
+.pred-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;gap:10px}
+.big-letter{font-size:100px;font-weight:800;color:#38bdf8;line-height:1;min-height:110px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.big-letter.new{animation:pop .2s ease}
+@keyframes pop{0%{transform:scale(1.4);color:#22c55e}100%{transform:scale(1);color:#38bdf8}}
+.conf-wrap{width:200px}
+.conf-label{font-size:11px;color:#94a3b8;text-align:center;margin-bottom:4px}
+.conf-bar{height:6px;background:#0f172a;border-radius:3px;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;transition:width .2s,background .2s}
+.status-pill{padding:3px 12px;border-radius:20px;font-size:11px;font-weight:600;background:#0f172a;color:#94a3b8}
+.status-pill.ready{background:#14532d;color:#4ade80}
+.status-pill.detecting{background:#1e3a5f;color:#38bdf8}
+.hand-dot{width:10px;height:10px;border-radius:50%;background:#334155;transition:.3s}
+.hand-dot.on{background:#22c55e;box-shadow:0 0 8px #22c55e}
+
+/* Camera */
+.cam-wrap{position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3}
+#video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+.cam-border{position:absolute;inset:0;border:2px solid #38bdf8;border-radius:8px;pointer-events:none}
+.cam-corner{position:absolute;width:18px;height:18px;border-color:#38bdf8;border-style:solid}
+.cam-corner.tl{top:6px;left:6px;border-width:2px 0 0 2px}
+.cam-corner.tr{top:6px;right:6px;border-width:2px 2px 0 0}
+.cam-corner.bl{bottom:6px;left:6px;border-width:0 0 2px 2px}
+.cam-corner.br{bottom:6px;right:6px;border-width:0 2px 2px 0}
+.cam-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:#00000080;color:#38bdf8;font-size:11px;padding:3px 10px;border-radius:12px;white-space:nowrap}
+
+/* Sentence box */
+.sentence-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px 16px;min-height:56px;font-size:22px;font-weight:600;color:#f8fafc;letter-spacing:.05em;word-break:break-all;transition:.2s}
+.sentence-box:empty::before{content:"Start signing...";color:#334155;font-size:16px;font-weight:400}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s}
+.btn-speak{background:#22c55e;color:#0f172a}.btn-speak:hover{background:#16a34a}
+.btn-space{background:#1e293b;color:#94a3b8;border:1px solid #334155}.btn-space:hover{border-color:#38bdf8;color:#38bdf8}
+.btn-del{background:#1e293b;color:#f87171;border:1px solid #f87171}.btn-del:hover{background:#f8717120}
+.btn-clear{background:#1e293b;color:#94a3b8;border:1px solid #334155}.btn-clear:hover{border-color:#f87171;color:#f87171}
+.hint-row{font-size:11px;color:#475569;margin-top:6px}
+
+/* Mode 2 */
+.m2-input-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.m2-input{flex:1;min-width:180px;padding:10px 14px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#f8fafc;font-size:14px;outline:none;transition:.2s}
+.m2-input:focus{border-color:#38bdf8}
+.mic-btn{width:44px;height:44px;border-radius:50%;background:#1e293b;border:2px solid #334155;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:.2s;flex-shrink:0}
+.mic-btn:hover{border-color:#38bdf8}
+.mic-btn.listening{border-color:#f87171;background:#f8717120;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #f8717140}50%{box-shadow:0 0 0 10px #f8717100}}
+.signs-grid{display:flex;flex-wrap:wrap;gap:14px}
+.sign-cell{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0}
+.sign-img{width:130px;height:130px;object-fit:cover;border-radius:8px;border:1px solid #334155;background:#0f172a;cursor:pointer}
+.sign-char{font-size:14px;font-weight:700;color:#38bdf8}
+.sign-space{width:80px;height:130px;border-radius:8px;border:2px dashed #334155;display:flex;align-items:center;justify-content:center;color:#334155;font-size:11px}
+
+/* Slideshow */
+#slideshow{display:none;flex-direction:row;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:16px}
+.slide-img-wrap{position:relative;width:240px;height:240px;flex-shrink:0;background:#0f172a;border-radius:12px;border:2px solid #334155;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#slide-img{width:100%;height:100%;object-fit:contain}
+.slide-info{display:flex;flex-direction:column;gap:10px;min-width:180px}
+#slide-char{font-size:56px;font-weight:800;color:#38bdf8;line-height:1}
+#slide-index{font-size:12px;color:#94a3b8}
+.slide-bar-wrap{width:220px;height:4px;background:#1e293b;border-radius:2px}
+#slide-bar{height:100%;background:#38bdf8;border-radius:2px;transition:width .3s;width:0%}
+#slide-dots{display:flex;gap:5px;flex-wrap:wrap;max-width:220px}
+.slide-controls{display:flex;gap:8px;align-items:center}
+#play-btn{min-width:72px}
+select{background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px}
+
+/* Status bar */
+.status-bar{background:#1e293b;border-top:1px solid #334155;padding:6px 24px;font-size:11px;color:#94a3b8;flex-shrink:0}
+#status-text{color:#4ade80}
+.panel{display:none}.panel.active{display:flex;flex-direction:column;gap:16px}
+#audio-player{display:none}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-title">🤟 AI Sign Language Translator</div>
+  <div class="nav-right">
+    Logged in as <span>{{ username }}</span>
+    <a href="/logout" class="logout-btn">Logout</a>
+  </div>
+</nav>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchMode(1)">👁 Mode 1 — Live Sign to Text</div>
+  <div class="tab" onclick="switchMode(2)">🎙 Mode 2 — Text/Speech to Sign</div>
+</div>
+
+<main>
+
+<!-- ══ MODE 1 ══════════════════════════════════════════════════════════════ -->
+<div id="panel-1" class="panel active">
+  <div class="row row-2">
+
+    <!-- Prediction -->
+    <div class="card pred-card">
+      <div class="card-label">Live Prediction</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="hand-dot" id="hand-dot"></div>
+        <span style="font-size:11px;color:#94a3b8" id="hand-status">No hand</span>
+      </div>
+      <div class="big-letter" id="pred-letter">—</div>
+      <div class="conf-wrap">
+        <div class="conf-label" id="conf-label">Confidence: 0%</div>
+        <div class="conf-bar"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
+      </div>
+      <div class="status-pill" id="pred-status">Waiting</div>
+    </div>
+
+    <!-- Camera -->
+    <div class="card">
+      <div class="card-label">Camera Feed</div>
+      <div class="cam-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="cam-border">
+          <div class="cam-corner tl"></div><div class="cam-corner tr"></div>
+          <div class="cam-corner bl"></div><div class="cam-corner br"></div>
+        </div>
+        <div class="cam-hint" id="cam-hint">Show your hand to the camera</div>
+      </div>
+    </div>
+  </div>
+
+    <!-- Sentence builder -->
+  <div class="card">
+    <div class="card-label">Sentence Builder</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn" id="capture-btn" onclick="toggleCapture()"
+        style="background:#22c55e;color:#0f172a;font-weight:700;padding:9px 20px">
+        ▶ Start Capture
+      </button>
+      <span style="font-size:12px;color:#475569;align-self:center" id="capture-hint">
+        Click Start to begin detecting signs
+      </span>
+    </div>
+    <div class="sentence-box" id="sentence-box"></div>
+    <div class="actions">
+      <button class="btn btn-speak" onclick="speakSentence()">🔊 Speak</button>
+      <button class="btn btn-space" onclick="addSpace()">⎵ Space</button>
+      <button class="btn btn-del"   onclick="deleteLast()">⌫ Delete</button>
+      <button class="btn btn-clear" onclick="clearSentence()">✕ Clear</button>
+    </div>
+    <div class="hint-row">Signs are added automatically when detected stably. Click Speak to hear the full sentence.</div>
+  </div>
+  <audio id="audio-player"></audio>
+</div>
+
+<!-- ══ MODE 2 ══════════════════════════════════════════════════════════════ -->
+<div id="panel-2" class="panel">
+  <div class="card">
+    <div class="card-label">Input</div>
+    <div class="m2-input-row">
+      <input class="m2-input" id="m2-text" type="text" placeholder="Type text or click mic to speak...">
+      <button class="btn" style="background:#38bdf8;color:#0f172a;font-weight:700" onclick="textToSign()">Show Signs</button>
+      <div class="mic-btn" id="mic-btn" onclick="toggleSpeech()" title="Speak">🎙</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Sign Language Output</div>
+    <div id="slideshow">
+      <div class="slide-img-wrap">
+        <img id="slide-img" src="" alt="">
+        <div id="slide-space" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;color:#334155;font-size:16px">SPACE</div>
+      </div>
+      <div class="slide-info">
+        <div id="slide-char">—</div>
+        <div id="slide-index"></div>
+        <div class="slide-bar-wrap"><div id="slide-bar"></div></div>
+        <div id="slide-dots"></div>
+        <div class="slide-controls">
+          <button class="btn btn-space" onclick="slidePrev()" style="padding:6px 12px">⏮</button>
+          <button class="btn btn-speak" id="play-btn" onclick="togglePlay()" style="padding:6px 14px">⏸</button>
+          <button class="btn btn-space" onclick="slideNext()" style="padding:6px 12px">⏭</button>
+          <select id="speed-sel" onchange="setSpeed()">
+            <option value="1500">Slow</option>
+            <option value="1000" selected>Normal</option>
+            <option value="500">Fast</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="signs-grid" class="signs-grid"><p style="color:#475569;font-size:13px">Signs will appear here...</p></div>
+  </div>
+</div>
+
+</main>
+
+<div class="status-bar">Status: <span id="status-text">Ready</span></div>
+
+<script>
+// ── Capture toggle ────────────────────────────────────────────────────────────
+let capturing = false;
+function toggleCapture(){
+  capturing = !capturing;
+  socket.emit("set_capture", {active: capturing});
+  const btn  = document.getElementById("capture-btn");
+  const hint = document.getElementById("capture-hint");
+  if(capturing){
+    btn.style.background  = "#f87171";
+    btn.style.color       = "#fff";
+    btn.textContent       = "⏹ Stop Capture";
+    hint.textContent      = "Detecting signs — show your hand";
+    startStreaming();
+  } else {
+    btn.style.background  = "#22c55e";
+    btn.style.color       = "#0f172a";
+    btn.textContent       = "▶ Start Capture";
+    hint.textContent      = "Click Start to begin detecting signs";
+    stopStreaming();
+    // Reset prediction display
+    document.getElementById("pred-letter").textContent = "—";
+    document.getElementById("conf-label").textContent  = "Confidence: 0%";
+    document.getElementById("conf-fill").style.width   = "0%";
+    document.getElementById("pred-status").textContent = "Stopped";
+    document.getElementById("pred-status").className   = "status-pill";
+    document.getElementById("hand-dot").className      = "hand-dot";
+    document.getElementById("hand-status").textContent = "No hand";
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+const socket = io();
+let streaming = false;
+let frameInterval = null;
+
+socket.on("prediction", d => {
+  // Hand indicator
+  const dot = document.getElementById("hand-dot");
+  const hs  = document.getElementById("hand-status");
+  dot.className = "hand-dot" + (d.hand ? " on" : "");
+  hs.textContent = d.hand ? "Hand detected" : "No hand";
+  document.getElementById("cam-hint").textContent =
+    d.hand ? "Hold gesture steady" : "Show your hand to the camera";
+
+  // Letter display
+  const letterEl = document.getElementById("pred-letter");
+  letterEl.textContent = d.letter || "—";
+
+  // Confidence
+  const conf = d.conf || 0;
+  document.getElementById("conf-label").textContent = `Confidence: ${conf}%`;
+  const fill = document.getElementById("conf-fill");
+  fill.style.width = conf + "%";
+  fill.style.background = conf>=80?"#22c55e":conf>=60?"#f59e0b":"#f87171";
+
+  // Status pill
+  const pill = document.getElementById("pred-status");
+  if(d.stable){ pill.className="status-pill ready"; pill.textContent="Stable"; }
+  else if(d.hand){ pill.className="status-pill detecting"; pill.textContent="Detecting..."; }
+  else{ pill.className="status-pill"; pill.textContent="Waiting"; }
+
+  // Auto-append new letter
+  if(d.new_letter){
+    letterEl.classList.remove("new");
+    void letterEl.offsetWidth;
+    letterEl.classList.add("new");
+    appendLetter(d.new_letter);
+    setStatus(`Added: ${d.new_letter}`);
+  }
+});
+
+// ── Camera + streaming ────────────────────────────────────────────────────────
+let stream = null;
+
+async function startCamera(){
+  if(stream) return;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"}});
+    document.getElementById("video").srcObject = stream;
+    setStatus("Camera ready — click Start Capture to begin");
+  }catch(e){ setStatus("Camera error: "+e.message,"err"); }
+}
+
+function startStreaming(){
+  if(frameInterval) clearInterval(frameInterval);
+  const video   = document.getElementById("video");
+  const canvas  = document.createElement("canvas");
+  canvas.width  = 320; canvas.height = 240;
+  const ctx     = canvas.getContext("2d");
+
+  frameInterval = setInterval(()=>{
+    if(!capturing || !stream) return;   // stop sending if not capturing
+    ctx.drawImage(video, 0, 0, 320, 240);
+    const img = canvas.toDataURL("image/jpeg", 0.6);
+    socket.emit("frame", {image: img});
+  }, 120);   // ~8fps — reduces lag significantly
+}
+
+function stopStreaming(){
+  if(frameInterval){ clearInterval(frameInterval); frameInterval=null; }
+}
+
+// ── Sentence builder ──────────────────────────────────────────────────────────
+let sentence = [];
+
+function appendLetter(l){
+  sentence.push(l);
+  renderSentence();
+}
+function addSpace(){ sentence.push(" "); renderSentence(); setStatus("Space added"); }
+function deleteLast(){ if(sentence.length){ sentence.pop(); renderSentence(); } }
+function clearSentence(){ sentence=[]; renderSentence(); setStatus("Cleared"); }
+
+function renderSentence(){
+  const box = document.getElementById("sentence-box");
+  box.textContent = sentence.join("");
+}
+
+async function speakSentence(){
+  const text = sentence.join("").trim();
+  if(!text){ setStatus("Nothing to speak","warn"); return; }
+  setStatus("Generating speech...");
+  const r = await fetch("/speak",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+  const d = await r.json();
+  if(!d.ok){ setStatus("Speech error","err"); return; }
+  const audio = document.getElementById("audio-player");
+  audio.src = d.url+"?t="+Date.now();
+  audio.play();
+  setStatus(`Speaking: "${text}"`);
+}
+
+// ── Mode switching ────────────────────────────────────────────────────────────
+function switchMode(n){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById("panel-"+n).classList.add("active");
+  document.querySelectorAll(".tab")[n-1].classList.add("active");
+  if(n===1) startCamera();
+  else {
+    stopStreaming();
+    capturing = false;
+  }
+}
+
+// ── Mode 2 slideshow ──────────────────────────────────────────────────────────
+let slideData=[], slideIdx=0, slideTimer=null, slideSpeed=1000, slidePlaying=true;
+
+async function textToSign(){
+  const text = document.getElementById("m2-text").value.trim();
+  if(!text){ setStatus("Enter text first","warn"); return; }
+  setStatus("Loading signs...");
+  const r = await fetch("/signs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+  const d = await r.json();
+  if(!d.ok){ setStatus("Error","err"); return; }
+  renderSigns(d.signs, text);
+  setStatus(`${d.signs.length} signs for "${text}"`);
+}
+
+function renderSigns(signs, text){
+  slideData = signs;
+  if(!signs.length){ document.getElementById("signs-grid").innerHTML="<p style='color:#475569'>No signs found.</p>"; return; }
+  document.getElementById("slideshow").style.display="flex";
+  const dots = document.getElementById("slide-dots");
+  dots.innerHTML = signs.map((_,i)=>`<div id="dot-${i}" style="width:7px;height:7px;border-radius:50%;background:#334155;transition:.2s"></div>`).join("");
+  document.getElementById("signs-grid").innerHTML = signs.map((s,i)=>{
+    const img = s.img ? `<img class="sign-img" src="${s.img}" onclick="jumpTo(${i})">` : `<div class="sign-space">SPC</div>`;
+    return `<div class="sign-cell" id="cell-${i}">${img}<div class="sign-char">${s.char}</div></div>`;
+  }).join("");
+  slideIdx=0; slidePlaying=true;
+  showSlide(0); startSlideTimer();
+}
+
+function showSlide(i){
+  const s=slideData[i]; if(!s) return;
+  const img=document.getElementById("slide-img");
+  const sp=document.getElementById("slide-space");
+  if(s.img){img.src=s.img;img.style.display="block";sp.style.display="none";}
+  else{img.style.display="none";sp.style.display="flex";}
+  document.getElementById("slide-char").textContent=s.char;
+  document.getElementById("slide-index").textContent=`${i+1} / ${slideData.length}`;
+  document.getElementById("slide-bar").style.width=`${((i+1)/slideData.length)*100}%`;
+  slideData.forEach((_,j)=>{
+    const d=document.getElementById("dot-"+j);
+    if(d) d.style.background=j===i?"#38bdf8":j<i?"#1e4a6e":"#334155";
+    const c=document.getElementById("cell-"+j);
+    if(c) c.style.outline=j===i?"2px solid #38bdf8":"none";
+  });
+  slideIdx=i;
+}
+function startSlideTimer(){ clearInterval(slideTimer); slideTimer=setInterval(()=>showSlide((slideIdx+1)%slideData.length),slideSpeed); }
+function togglePlay(){ slidePlaying=!slidePlaying; document.getElementById("play-btn").textContent=slidePlaying?"⏸":"▶"; if(slidePlaying)startSlideTimer(); else clearInterval(slideTimer); }
+function slideNext(){ showSlide((slideIdx+1)%slideData.length); if(slidePlaying)startSlideTimer(); }
+function slidePrev(){ showSlide((slideIdx-1+slideData.length)%slideData.length); if(slidePlaying)startSlideTimer(); }
+function jumpTo(i){ showSlide(i); if(slidePlaying)startSlideTimer(); }
+function setSpeed(){ slideSpeed=parseInt(document.getElementById("speed-sel").value); if(slidePlaying)startSlideTimer(); }
+
+// ── Speech recognition (Mode 2) ───────────────────────────────────────────────
+let recognition=null;
+function toggleSpeech(){
+  const btn=document.getElementById("mic-btn");
+  if(recognition){recognition.stop();recognition=null;btn.classList.remove("listening");return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){setStatus("Speech not supported","err");return;}
+  recognition=new SR(); recognition.lang="en-US"; recognition.interimResults=false;
+  recognition.onstart=()=>{btn.classList.add("listening");setStatus("Listening...");};
+  recognition.onresult=e=>{const t=e.results[0][0].transcript;document.getElementById("m2-text").value=t;textToSign();};
+  recognition.onerror=e=>{setStatus("Speech error: "+e.error,"err");};
+  recognition.onend=()=>{btn.classList.remove("listening");recognition=null;};
+  recognition.start();
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(msg,type="ok"){
+  const el=document.getElementById("status-text");
+  el.textContent=msg;
+  el.style.color=type==="err"?"#f87171":type==="warn"?"#f59e0b":"#4ade80";
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+startCamera();
+document.getElementById("m2-text").addEventListener("keydown",e=>{if(e.key==="Enter")textToSign();});
+</script>
+</body>
+</html>

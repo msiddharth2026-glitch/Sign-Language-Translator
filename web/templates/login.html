@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Language Translator — Login</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{min-height:100vh;background:#0f172a;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;color:#f8fafc}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:40px 36px;width:100%;max-width:420px;box-shadow:0 25px 60px #00000060}
+  .logo{text-align:center;font-size:48px;margin-bottom:8px}
+  h1{text-align:center;font-size:22px;color:#38bdf8;margin-bottom:4px}
+  .sub{text-align:center;font-size:13px;color:#94a3b8;margin-bottom:28px}
+  .tabs{display:flex;background:#0f172a;border-radius:8px;padding:4px;margin-bottom:24px}
+  .tab{flex:1;padding:8px;text-align:center;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;color:#94a3b8;transition:.2s}
+  .tab.active{background:#1e293b;color:#38bdf8;box-shadow:0 2px 8px #00000040}
+  label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px;margin-top:16px}
+  input{width:100%;padding:11px 14px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#f8fafc;font-size:15px;outline:none;transition:.2s}
+  input:focus{border-color:#38bdf8;box-shadow:0 0 0 3px #38bdf820}
+  .btn{width:100%;margin-top:22px;padding:12px;background:#38bdf8;color:#0f172a;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s}
+  .btn:hover{background:#0ea5e9}
+  .msg{margin-top:12px;text-align:center;font-size:13px;min-height:18px}
+  .err{color:#f87171}.ok{color:#4ade80}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🤟</div>
+  <h1>Sign Language Translator</h1>
+  <p class="sub">Login or create an account to continue</p>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-login" onclick="switchTab('login')">Login</div>
+    <div class="tab" id="tab-register" onclick="switchTab('register')">Register</div>
+  </div>
+
+  <div id="form-login">
+    <label>Username</label>
+    <input id="l-user" type="text" placeholder="Enter username" autocomplete="username">
+    <label>Password</label>
+    <input id="l-pass" type="password" placeholder="Enter password" autocomplete="current-password">
+    <button class="btn" onclick="doLogin()">Login</button>
+    <p class="msg" id="l-msg"></p>
+  </div>
+
+  <div id="form-register" style="display:none">
+    <label>Username</label>
+    <input id="r-user" type="text" placeholder="Choose a username">
+    <label>Password</label>
+    <input id="r-pass" type="password" placeholder="Choose a password">
+    <label>Confirm Password</label>
+    <input id="r-conf" type="password" placeholder="Repeat password">
+    <label>Favourite Colour <span style="color:#475569;font-size:11px">(used for verification)</span></label>
+    <input id="r-colour" type="text" placeholder="e.g. blue, red, green...">
+    <button class="btn" onclick="doRegister()">Create Account</button>
+    <p class="msg" id="r-msg"></p>
+  </div>
+</div>
+
+<script>
+function switchTab(t){
+  document.getElementById('form-login').style.display    = t==='login'    ? '' : 'none';
+  document.getElementById('form-register').style.display = t==='register' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    t==='login');
+  document.getElementById('tab-register').classList.toggle('active', t==='register');
+}
+
+async function doLogin(){
+  const u=document.getElementById('l-user').value.trim();
+  const p=document.getElementById('l-pass').value;
+  const msg=document.getElementById('l-msg');
+  if(!u||!p){msg.className='msg err';msg.textContent='Fill in all fields.';return}
+  const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const d=await r.json();
+  if(d.ok){ showColourVerify(); }
+  else{msg.className='msg err';msg.textContent=d.msg}
+}
+
+function showColourVerify(){
+  document.querySelector('.card').innerHTML=`
+    <div class="logo">🎨</div>
+    <h1>Colour Verification</h1>
+    <p class="sub">Enter your favourite colour to continue</p>
+    <label style="display:block;font-size:12px;color:#94a3b8;margin:20px 0 6px">Favourite Colour</label>
+    <input id="cv-colour" type="text" placeholder="e.g. blue, red, green..."
+      style="width:100%;padding:11px 14px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#f8fafc;font-size:15px;outline:none">
+    <button onclick="submitColour()" style="width:100%;margin-top:16px;padding:12px;background:#38bdf8;color:#0f172a;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Verify</button>
+    <p id="cv-msg" style="margin-top:10px;text-align:center;font-size:13px;min-height:18px"></p>
+  `;
+  document.getElementById('cv-colour').addEventListener('keydown',e=>{if(e.key==='Enter')submitColour()});
+  document.getElementById('cv-colour').focus();
+}
+
+async function submitColour(){
+  const colour=document.getElementById('cv-colour').value.trim();
+  const msg=document.getElementById('cv-msg');
+  if(!colour){msg.style.color='#f87171';msg.textContent='Enter your colour.';return}
+  const r=await fetch('/verify_colour',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({colour})});
+  const d=await r.json();
+  if(d.ok){msg.style.color='#4ade80';msg.textContent='✓ Verified!';setTimeout(()=>window.location='/dashboard',600);}
+  else{msg.style.color='#f87171';msg.textContent=d.msg;}
+}
+
+async function doRegister(){
+  const u=document.getElementById('r-user').value.trim();
+  const p=document.getElementById('r-pass').value;
+  const c=document.getElementById('r-conf').value;
+  const colour=document.getElementById('r-colour').value.trim();
+  const msg=document.getElementById('r-msg');
+  if(!u||!p||!c||!colour){msg.className='msg err';msg.textContent='Fill in all fields.';return}
+  if(p!==c){msg.className='msg err';msg.textContent='Passwords do not match.';return}
+  const r=await fetch('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,colour})});
+  const d=await r.json();
+  msg.className='msg '+(d.ok?'ok':'err');
+  msg.textContent=d.msg;
+  if(d.ok)setTimeout(()=>switchTab('login'),1200);
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const t=document.getElementById('tab-login').classList.contains('active');t?doLogin():doRegister()}});
+</script>
+</body>
+</html>
