@@ -283,13 +283,7 @@ def predict():
                 state.lock_time   = now
                 state.same_letter_count = 1
                 state.buf.clear()
-        else:
-            state.same_letter_count += 1
-            if state.same_letter_count >= 15 and now - state.lock_time > 2.0:
-                new_letter = top.upper()
-                state.lock_time = now
-                state.same_letter_count = 0
-                state.buf.clear()
+        # Removed re-adding same letter — user must clear and re-sign
 
     return jsonify(
         hand=True,

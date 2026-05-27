@@ -240,6 +240,9 @@ function toggleCapture(){
     btn.textContent       = "▶ Start Capture";
     hint.textContent      = "Click Start to begin detecting signs";
     stopPolling();
+    lastLandmarks = null;
+    // Reset server state so same letter can be re-detected next time
+    fetch("/reset_state", {method:"POST"}).catch(()=>{});
     document.getElementById("pred-letter").textContent = "—";
     document.getElementById("conf-label").textContent  = "Confidence: 0%";
     document.getElementById("conf-fill").style.width   = "0%";
@@ -247,6 +250,8 @@ function toggleCapture(){
     document.getElementById("pred-status").className   = "status-pill";
     document.getElementById("hand-dot").className      = "hand-dot";
     document.getElementById("hand-status").textContent = "No hand";
+    document.getElementById("top3-row").style.display  = "none";
+    document.getElementById("cam-hint").textContent    = "Show your hand to the camera";
   }
 }
 
@@ -432,8 +437,8 @@ async function sendLandmarks(lmList){
 }
 
 function stopPolling(){
-  if(pollInterval){ clearInterval(pollInterval); pollInterval=null; }
   capturing = false;
+  lastLandmarks = null;
 }
 
 // ── Sentence builder ──────────────────────────────────────────────────────────
