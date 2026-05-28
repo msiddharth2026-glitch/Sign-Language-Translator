@@ -291,9 +291,12 @@ def speak():
     text = (request.json or {}).get("text","").strip()
     if not text: return jsonify(ok=False, msg="No text")
     try:
+        # text is letters joined — convert to readable words
+        # e.g. "HELLO WORLD" stays as is, already space-separated words
+        spoken = text.lower()
         fname = f"speech_{session['user']}.mp3"
         path  = os.path.join(TMP_DIR, fname)
-        gTTS(text=text.lower(), lang="en").save(path)
+        gTTS(text=spoken, lang="en", slow=False).save(path)
         return jsonify(ok=True, url=f"/static/tmp/{fname}")
     except Exception as e:
         return jsonify(ok=False, msg=str(e))

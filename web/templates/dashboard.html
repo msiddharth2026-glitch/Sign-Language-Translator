@@ -466,8 +466,11 @@ function renderSentence(){
 }
 
 async function speakSentence(){
-  const text = sentence.join("").trim();
-  if(!text){ setStatus("Nothing to speak","warn"); return; }
+  const raw = sentence.join("").trim();
+  if(!raw){ setStatus("Nothing to speak","warn"); return; }
+  // sentence is letters + spaces — already forms words like "HELLO WORLD"
+  // gTTS reads this as natural words, not letters
+  const text = raw;
   setStatus("Generating speech...");
   try{
     const r = await fetch("/speak",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
