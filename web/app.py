@@ -91,7 +91,7 @@ def predict_landmarks(lm_list):
 # ── Per-session state ──────────────────────────────────────────────────────────
 class ClientState:
     def __init__(self):
-        self.buf           = deque(maxlen=8)
+        self.buf           = deque(maxlen=10)
         self.last_locked   = None
         self.lock_time     = 0.0
         self.no_hand_count = 0
@@ -190,7 +190,7 @@ def dashboard():
     return render_template("dashboard.html", username=session["user"])
 
 # ── Predict ────────────────────────────────────────────────────────────────────
-CONF_THRESHOLD = 0.60  # lowered from 0.75 — more responsive
+CONF_THRESHOLD = 0.70  # raised — only accept high-confidence predictions
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -252,7 +252,7 @@ def predict():
     counts   = Counter(l for l,_ in state.buf)
     top, cnt = counts.most_common(1)[0]
     avg_conf = float(np.mean([c for l,c in state.buf if l==top]))
-    stable   = cnt >= 3 and avg_conf >= CONF_THRESHOLD
+    stable   = cnt >= 5 and avg_conf >= CONF_THRESHOLD  # need 5 consistent frames
 
     new_letter = None
     now = time.time()

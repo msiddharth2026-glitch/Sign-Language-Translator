@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from feature_extractor import extract_features
 
 BASE      = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR  = os.path.join(BASE, "dataset")
+DATA_DIR  = os.path.join(BASE, "dataset", "original_images")
 WEB_DIR   = os.path.join(BASE, "web")
 LANDMARKER = os.path.join(WEB_DIR, "hand_landmarker.task")
 
@@ -63,12 +63,16 @@ def extract_from_image(path):
     return None
 
 
-def augment(vec, n=4):
-    """Add small noise augmentations."""
+def augment(vec, n=8):
+    """Stronger augmentations: noise, scale, rotation jitter."""
     vecs = [vec]
     for _ in range(n):
-        noise = np.random.normal(0, 0.008, vec.shape).astype(np.float32)
-        vecs.append(vec + noise)
+        v = vec.copy()
+        # Random noise
+        v += np.random.normal(0, 0.012, v.shape).astype(np.float32)
+        # Random scale (simulate hand distance variation)
+        v *= np.random.uniform(0.92, 1.08)
+        vecs.append(v)
     return vecs
 
 
@@ -114,9 +118,11 @@ feat_dim  = X.shape[1]
 mlp = models.Sequential([
     layers.Input(shape=(feat_dim,)),
     layers.Dense(512, activation='relu'),
+    layers.BatchNormalization(), layers.Dropout(0.4),
+    layers.Dense(512, activation='relu'),
     layers.BatchNormalization(), layers.Dropout(0.35),
     layers.Dense(256, activation='relu'),
-    layers.BatchNormalization(), layers.Dropout(0.25),
+    layers.BatchNormalization(), layers.Dropout(0.3),
     layers.Dense(128, activation='relu'),
     layers.BatchNormalization(), layers.Dropout(0.2),
     layers.Dense(64,  activation='relu'),
